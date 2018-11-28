@@ -6,8 +6,8 @@ with open('README.md', 'r') as fh:
 setuptools.setup(
     name='pyvyu',
     version='0.0.1',
-    author='Shohan Hasan',
-    author_email='shohan.hasan@nyu.edu',
+    author='Datavyu',
+    author_email='info@datavyu.org',
     description='Datavyu file parser',
     long_description=long_description,
     long_description_content_type='text/markdown',
