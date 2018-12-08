@@ -1,9 +1,15 @@
-import pytest
-import pyvyu
+import pyvyu as pv
+
+
+def test_init():
+    assert 'load_opf' in dir(pv)
+
 
 def test_load_sample():
-    pyvyu.load_opf('DatavyuSampleSpreadsheet.opf')
-    assert False
+    sheet = pv.load_opf('./DatavyuSampleSpreadsheet.opf')
+    # print(sheet.get_column_list())
+    assert len(sheet.get_column_list()) == 6
 
-if __name__ == '__main__':
-    pyvyu.load_opf('DatavyuSampleSpreadsheet')
+    momspeech = sheet.get_column('MomSpeech')
+    print([x.ordinal for x in momspeech.sorted_cells()])
+    assert len(momspeech.sorted_cells()) == 20
