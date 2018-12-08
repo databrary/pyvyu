@@ -1,1 +1,1 @@
-name = "pyvyu"
+from pyvyu.pyvyu import *
