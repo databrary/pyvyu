@@ -1,9 +1,7 @@
 import zipfile
-import os
-import sys
 import re
-import numpy as np
 import pandas as pd
+import logging as log
 
 
 def load_opf(filename):
@@ -33,7 +31,7 @@ def load_opf(filename):
             col = None
             ordinal_counter = 1
 
-            for line in db:
+            for line_num, line in enumerate(db):
                 line_stripped = line.strip().decode('utf8')
 
                 # Check type of line
@@ -41,32 +39,26 @@ def load_opf(filename):
                 if line_type == 'column':
                     name = match.group('colname')
                     codes = [x.split('|')[0] for x in match.group('codes').split(',')]
-                    # print(line_stripped)
-                    # print(name)
-                    # print(codes)
+                    log.debug("Stripped line: %s\n", line_stripped)
 
                     # Create new column
-                    # if col is not None:
-                    #     print(f"Column {col.name} has {len(col.cells)} cells.")
                     col = sheet.new_column(match.group('colname'), *codes)
-                    # print(f"Created column {col.name}, with codes: {', '.join(col.codelist)}")
+                    log.debug(f"Created column %s with code(s): %s\n", col.name, ', '.join(col.codelist))
 
                     ordinal_counter = 1
 
                 elif line_type == 'cell':
-                    # print(f"{match.group('onset')}\t{match.group('offset')}\t{match.group('values')}")
                     values = match.group('values').split(',')
-                    cell = col.new_cell(*values, onset=match.group('onset'),
-                                                 offset=match.group('offset'),
-                                                 ordinal=ordinal_counter)
+                    cell = col.new_cell(
+                        *values,
+                        onset=match.group('onset'),
+                        offset=match.group('offset'),
+                        ordinal=ordinal_counter)
                     ordinal_counter += 1
-
-                    # print(f"{cell.values.values()}")
-
+                    log.debug("New cell: %s\n", ', '.join(map(str, cell.get_values(intrinsics=True))))
                 else:
-                    print(f"Can't parse: {line_stripped}")
+                    log.warning("Can't parse line %d: %s\n", line_num, line_stripped)
     return sheet
-
 
 class Spreadsheet:
     """Collection of columns."""
@@ -88,7 +80,7 @@ class Spreadsheet:
     def get_column(self, name):
         return self.columns[name]
 
-    def map_columns(self, column_names):
+    def map_columns(self, *column_names):
         return [self.get_column(col) if (isinstance(col, str)) else col for col in column_names]
 
     def merge_columns(self, name, *columns):
@@ -97,11 +89,10 @@ class Spreadsheet:
         if len(columns) == 0:
             columns = self.columns.values()
 
-        cols = self.map_columns(columns)
+        cols = self.map_columns(*columns)
 
         # Construct new column using column names and codes to make the code list.
-        codes = [f'{col.name}_{codename}' for col in cols for codename in col.get_codelist()]
-        # print(codes)
+        codes = [f'{col.name}_{codename}' for col in cols for codename in col.codelist]
         ncol = Column(name, *codes)
 
         # Get a list of unique timestamps across all cells
@@ -116,7 +107,7 @@ class Spreadsheet:
             for col in cols:
                 cell = col.cell_at(onset)
                 if cell is not None:
-                    for code in col.get_codelist():
+                    for code in col.codelist:
                         ncell.change_code(f'{col.name}_{code}', cell.get_code(code))
             ord += 1
         return ncol
@@ -137,21 +128,21 @@ class Spreadsheet:
         df = pd.DataFrame(data, columns=variable_list)
         return df
 
-    def values_at(self, time, columns=None):
+    def values_at(self, time, *columns):
         """Find values of codes in columns at a time point."""
 
-        if columns is None:
+        if len(columns) == 0:
             columns = self.columns.values()
 
-        return [val for cell in self.cells_at(time) for val in cell.values()]
+        return [val for cell in self.cells_at(time, *columns) for val in cell.values()]
 
-    def cells_at(self, time, columns=None):
+    def cells_at(self, time, *columns):
         """Find the cells spanning a time point."""
 
-        if columns is None:
+        if len(columns) == 0:
             columns = self.columns.values()
 
-        cols = self.map_columns(columns)
+        cols = self.map_columns(*columns)
 
         return [col.cell_at(time) for col in cols]
 
@@ -194,9 +185,6 @@ class Column:
                 return cell.get_values(True)
             else:
                 return cell.values()
-
-    def get_codelist(self):
-        return self.codelist
 
 
 class Cell:

@@ -1,4 +1,5 @@
 import pyvyu as pv
+import logging as log
 
 
 def test_init():
