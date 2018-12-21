@@ -164,6 +164,12 @@ class Column:
 
         for code, value in kwargs.items():
             c.change_code(code, value)
+
+        # Insert '' for undefined codes
+        for code in self.codelist:
+            if code not in c.values.keys():
+                c.change_code(code, '')
+
         self.cells.append(c)
         return c
 
