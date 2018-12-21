@@ -120,12 +120,10 @@ class Spreadsheet:
 
         merge_col = self.merge_columns('temp', *columns)
 
-        data = []
-        for cell in merge_col.sorted_cells():
-            data.append(cell.get_values(intrinsics=True))
-
-        variable_list = ['onset', 'offset'].extend(merge_col.codelist)
+        variable_list = ['ordinal', 'onset', 'offset'] + merge_col.codelist
+        data = [cell.get_values(intrinsics=True) for cell in merge_col.sorted_cells()]
         df = pd.DataFrame(data, columns=variable_list)
+        df.set_index('ordinal', inplace=True)
         return df
 
     def values_at(self, time, *columns):
@@ -152,7 +150,7 @@ class Column:
 
     def __init__(self, name='', *codes):
         self.name = name
-        self.codelist = set(codes)
+        self.codelist = list(codes)
         self.cells = []
 
     def new_cell(self, *values, **kwargs):
