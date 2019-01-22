@@ -22,4 +22,10 @@ def test_spreadsheet_to_df():
     df = sheet.to_df()
 
     print(df)
-    assert(len(df) == 153)
+
+    assert(156 == len(df))
+    df.to_csv('./DatavyuSampleSpreadsheet.csv')
+
+    df = sheet.to_df('MomSpeech')
+    print(df)
+    df.to_csv('./MomSpeech.csv')
