@@ -97,8 +97,13 @@ class Spreadsheet:
 
         # Get a list of unique timestamps across all cells
         all_cells = [cell for col in cols for cell in col.cells]
-        all_times = [time for cell in all_cells for time in [cell.onset, cell.offset]]
-        times = sorted(set(all_times))
+        unique_times = list(dict.fromkeys([time for cell in all_cells for time in [cell.onset, cell.offset]]))
+
+        # Get times of point cells (onset == offset)
+        point_times = list(dict.fromkeys([cell.onset for cell in filter(lambda x: x.onset == x.offset, all_cells)]))
+
+        times = sorted(unique_times + point_times)  # this should put a duplicate time for each of the point times
+        log.debug(times)
 
         # Iterate over each interval and generate row of values for that interval
         ord = 1
@@ -107,6 +112,9 @@ class Spreadsheet:
             for col in cols:
                 cell = col.cell_at(onset)
                 if cell is not None:
+                    # Don't print point cells unless point region
+                    if onset != offset and cell.onset == cell.offset:
+                        continue
                     for code in col.codelist:
                         ncell.change_code(f'{col.name}_{code}', cell.get_code(code))
             ord += 1
