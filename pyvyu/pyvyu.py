@@ -92,7 +92,7 @@ class Spreadsheet:
         cols = self.map_columns(*columns)
 
         # Construct new column using column names and codes to make the code list.
-        codes = [f'{col.name}_{codename}' for col in cols for codename in col.codelist]
+        codes = [f'{col.name}_{codename}' for col in cols for codename in (['ordinal'] + col.codelist)]
         ncol = Column(name, *codes)
 
         # Get a list of unique timestamps across all cells
@@ -115,7 +115,7 @@ class Spreadsheet:
                     # Don't print point cells unless point region
                     if onset != offset and cell.onset == cell.offset:
                         continue
-                    for code in col.codelist:
+                    for code in (['ordinal'] + col.codelist):
                         ncell.change_code(f'{col.name}_{code}', cell.get_code(code))
             ord += 1
         return ncol
