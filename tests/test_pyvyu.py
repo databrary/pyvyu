@@ -49,3 +49,25 @@ def test_df_to_csv(sample_spreadsheet):
     df = sheet.to_df('MomSpeech')
     print(df)
     df.to_csv('./MomSpeech.csv')
+
+def test_to_millis():
+    ms = pv.to_millis('01:00:00:000')
+    assert(3600000 == ms)
+
+    ms = pv.to_millis('00:01:00:000')
+    assert(60000 == ms)
+
+    ms = pv.to_millis('00:00:01:000')
+    assert(1000 == ms)
+
+    ms = pv.to_millis('00:00:00:001')
+    assert(1 == ms)
+
+    ms = pv.to_millis('00:00:00:000')
+    assert(0 == ms)
+
+    ms = pv.to_millis('23:59:59:999')
+    assert(86399999 == ms)
+
+    ms = pv.to_millis('00:01:01:123')
+    assert(61123 == ms)

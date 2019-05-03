@@ -278,3 +278,13 @@ class Cell:
 #         factors = [60, 60, 1000, 1]
 #         t = sum(a * b for a, b in zip(factors, ts.split(':')))
 #         return t
+
+def to_millis(timestamp):
+    ms = 0
+    factors = [1, 60, 60, 1000]
+    parts = timestamp.split(":")
+    for factor, part in zip(factors, parts):
+        ms *= factor
+        ms += int(part)
+
+    return ms
