@@ -2,16 +2,20 @@ import zipfile
 import re
 import pandas as pd
 import logging as log
+from math import floor
+from functools import total_ordering
 
 
 def load_opf(filename):
     """Extract data from a .opf file and return a Spreadsheet"""
 
     line_formats = {
-        'column': re.compile(r'(?P<colname>\w+)\s\(.*\)\-(?P<codes>.*)'),
-        'cell': re.compile(r'(?P<onset>\d{2}\:\d{2}\:\d{2}\:\d{3}),'
-                           r'(?P<offset>\d{2}\:\d{2}\:\d{2}\:\d{3}),'
-                           r'\((?P<values>.*)\)')
+        "column": re.compile(r"(?P<colname>\w+)\s\(.*\)\-(?P<codes>.*)"),
+        "cell": re.compile(
+            r"(?P<onset>\d{2}\:\d{2}\:\d{2}\:\d{3}),"
+            r"(?P<offset>\d{2}\:\d{2}\:\d{2}\:\d{3}),"
+            r"\((?P<values>.*)\)"
+        ),
     }
 
     def _parse_line(line):
@@ -22,48 +26,57 @@ def load_opf(filename):
 
         return None, None
 
-    with zipfile.ZipFile(filename, 'r') as zf:
-        assert('db' in zf.namelist())
+    with zipfile.ZipFile(filename, "r") as zf:
+        assert "db" in zf.namelist()
 
         # Open the db file
-        with zf.open('db') as db:
+        with zf.open("db") as db:
             sheet = Spreadsheet()
             col = None
             ordinal_counter = 1
 
             for line_num, line in enumerate(db):
-                line_stripped = line.strip().decode('utf8')
+                line_stripped = line.strip().decode("utf8")
 
                 # Check type of line
                 line_type, match = _parse_line(line_stripped)
-                if line_type == 'column':
-                    name = match.group('colname')
-                    codes = [x.split('|')[0] for x in match.group('codes').split(',')]
+                if line_type == "column":
+                    name = match.group("colname")
+                    codes = [x.split("|")[0] for x in match.group("codes").split(",")]
                     log.debug("Stripped line: %s\n", line_stripped)
 
                     # Create new column
-                    col = sheet.new_column(match.group('colname'), *codes)
-                    log.debug(f"Created column %s with code(s): %s\n", col.name, ', '.join(col.codelist))
+                    col = sheet.new_column(match.group("colname"), *codes)
+                    log.debug(
+                        f"Created column %s with code(s): %s\n",
+                        col.name,
+                        ", ".join(col.codelist),
+                    )
 
                     ordinal_counter = 1
 
-                elif line_type == 'cell':
-                    values = match.group('values').split(',')
+                elif line_type == "cell":
+                    values = match.group("values").split(",")
                     cell = col.new_cell(
                         *values,
-                        onset=match.group('onset'),
-                        offset=match.group('offset'),
-                        ordinal=ordinal_counter)
+                        onset=match.group("onset"),
+                        offset=match.group("offset"),
+                        ordinal=ordinal_counter,
+                    )
                     ordinal_counter += 1
-                    log.debug("New cell: %s\n", ', '.join(map(str, cell.get_values(intrinsics=True))))
+                    log.debug(
+                        "New cell: %s\n",
+                        ", ".join(map(str, cell.get_values(intrinsics=True))),
+                    )
                 else:
                     log.warning("Can't parse line %d: %s\n", line_num, line_stripped)
     return sheet
 
+
 class Spreadsheet:
     """Collection of columns."""
 
-    name = ''
+    name = ""
     columns = {}
 
     def __init__(self):
@@ -81,7 +94,10 @@ class Spreadsheet:
         return self.columns[name]
 
     def map_columns(self, *column_names):
-        return [self.get_column(col) if (isinstance(col, str)) else col for col in column_names]
+        return [
+            self.get_column(col) if (isinstance(col, str)) else col
+            for col in column_names
+        ]
 
     def merge_columns(self, name, *columns):
         """Merge cells of the given columns into a new column."""
@@ -92,32 +108,53 @@ class Spreadsheet:
         cols = self.map_columns(*columns)
 
         # Construct new column using column names and codes to make the code list.
-        codes = [f'{col.name}_{codename}' for col in cols for codename in (['ordinal'] + col.codelist)]
+        codes = [
+            f"{col.name}_{codename}"
+            for col in cols
+            for codename in (["ordinal"] + col.codelist)
+        ]
         ncol = Column(name, *codes)
 
         # Get a list of unique timestamps across all cells
         all_cells = [cell for col in cols for cell in col.cells]
-        unique_times = list(dict.fromkeys([time for cell in all_cells for time in [cell.onset, cell.offset]]))
+        unique_times = list(
+            dict.fromkeys(
+                [
+                    to_millis(time)
+                    for cell in all_cells
+                    for time in [cell.onset, cell.offset]
+                ]
+            )
+        )
 
         # Get times of point cells (onset == offset)
-        point_times = list(dict.fromkeys([cell.onset for cell in filter(lambda x: x.onset == x.offset, all_cells)]))
+        point_times = list(
+            dict.fromkeys(
+                [
+                    to_millis(cell.onset)
+                    for cell in filter(lambda x: x.onset == x.offset, all_cells)
+                ]
+            )
+        )
 
-        times = sorted(unique_times + point_times)  # this should put a duplicate time for each of the point times
+        times = sorted(
+            unique_times + point_times
+        )  # this should put a duplicate time for each of the point times
         log.debug(times)
 
         # Iterate over each interval and generate row of values for that interval
-        ord = 1
+        ordinal = 1
         for onset, offset in zip(times, times[1:]):
-            ncell = ncol.new_cell(ordinal=ord, onset=onset, offset=offset)
+            ncell = ncol.new_cell(ordinal=ordinal, onset=onset, offset=offset)
             for col in cols:
                 cell = col.cell_at(onset)
                 if cell is not None:
                     # Don't print point cells unless point region
                     if onset != offset and cell.onset == cell.offset:
                         continue
-                    for code in (['ordinal'] + col.codelist):
-                        ncell.change_code(f'{col.name}_{code}', cell.get_code(code))
-            ord += 1
+                    for code in ["ordinal"] + col.codelist:
+                        ncell.change_code(f"{col.name}_{code}", cell.get_code(code))
+            ordinal += 1
         return ncol
 
     def to_df(self, *columns):
@@ -126,12 +163,12 @@ class Spreadsheet:
         if len(columns) == 0:
             columns = self.columns.values()
 
-        merge_col = self.merge_columns('temp', *columns)
+        merge_col = self.merge_columns("temp", *columns)
 
-        variable_list = ['ordinal', 'onset', 'offset'] + merge_col.codelist
+        variable_list = ["ordinal", "onset", "offset"] + merge_col.codelist
         data = [cell.get_values(intrinsics=True) for cell in merge_col.sorted_cells()]
         df = pd.DataFrame(data, columns=variable_list)
-        df.set_index('ordinal', inplace=True)
+        df.set_index("ordinal", inplace=True)
         return df
 
     def values_at(self, time, *columns):
@@ -156,7 +193,7 @@ class Spreadsheet:
 class Column:
     """Representation of a Datavyu coding pass."""
 
-    def __init__(self, name='', *codes):
+    def __init__(self, name="", *codes):
         self.name = name
         self.codelist = list(codes)
         self.cells = []
@@ -172,9 +209,8 @@ class Column:
             c.change_code(code, value)
 
         # Insert '' for undefined codes
-        for code in self.codelist:
-            if code not in c.values.keys():
-                c.change_code(code, '')
+        for code in self.codelist - c.values.keys():
+            c.change_code(code, "")
 
         self.cells.append(c)
         return c
@@ -204,11 +240,20 @@ class Cell:
 
     def __init__(self, parent=None, ordinal=0, onset=0, offset=0):
         self.parent = parent
-        self.values = {
-            'ordinal': ordinal,
-            'onset': onset,
-            'offset': offset
-        }
+        self.ordinal = ordinal
+        self.onset = Timestamp.new(onset)
+        self.offset = Timestamp.new(offset)
+        self.values = {} if parent is None else {k: "" for k in parent.codelist}
+
+    def __repr__(self):
+        print(self.parent.name)
+        print(self.ordinal)
+        print(self.onset)
+        print(self.offset)
+        return (
+            f"{self.parent.name}({self.ordinal},"
+            f"{to_timestamp(self.onset)}-{to_timestamp(self.offset)},"
+        ) + ",".join(self.get_values())
 
     def change_code(self, code, value):
         self.values[code] = value
@@ -226,58 +271,62 @@ class Cell:
         if intrinsics:
             return self.values.values()
         else:
-            return [v for (k, v) in self.values.items() if k not in ['ordinal', 'onset', 'offset']]
+            return [
+                v
+                for (k, v) in self.values.items()
+                if k not in ["ordinal", "onset", "offset"]
+            ]
 
     def spans(self, time):
         return self.onset <= time <= self.offset
 
     @property
     def ordinal(self):
-        return self.values['ordinal']
+        return self.values["ordinal"]
 
     @ordinal.setter
     def ordinal(self, value):
-        self.values['ordinal'] = value
+        self.values["ordinal"] = value
 
     @property
     def onset(self):
-        return self.values['onset']
+        return self.values["onset"]
 
     @onset.setter
     def onset(self, value):
-        self.values['onset'] = value
+        self.values["onset"] = value
 
     @property
     def offset(self):
-        return self.values['offset']
+        return self.values["offset"]
 
     @offset.setter
     def offset(self, value):
-        self.values['offset'] = value
+        self.values["offset"] = value
 
 
-# class Time:
-#     time = 0
-#     timestamp = '00:00:00:000'
-#
-#     def __init__(self, time):
-#         if isinstance(time, str):
-#             self.time = Time.to_millis(time)
-#             self.timestamp = time
-#         elif isinstance(time, int):
-#             self.time = time
-#             self.timestamp = Time.to_timestamp(time)
-#
-#     def timestamp(self):
-#         factors = [60, 60, 1000, 1]
-#         str = ''
-#         for f in factors:
-#             t = (self.time % f)
-#     @staticmethod
-#     def to_millis(ts):
-#         factors = [60, 60, 1000, 1]
-#         t = sum(a * b for a, b in zip(factors, ts.split(':')))
-#         return t
+@total_ordering
+class Timestamp:
+    """Representation of a Datavyu time point."""
+
+    def __init__(self, value):
+        if isinstance(value, String):
+            self.value = to_millis(value)
+        else:
+            self.value = value
+
+    def __repr__(self):
+        return str(value)
+
+    def __str__(self):
+        return to_timestamp(value)
+
+    def __eq__(self, other):
+        return self.value == other.value
+
+    def __lt__(self, other):
+        return self.value < other.value
+
 
 def to_millis(timestamp):
     ms = 0
@@ -288,3 +337,14 @@ def to_millis(timestamp):
         ms += int(part)
 
     return ms
+
+
+def to_timestamp(millis):
+    factors = [1000, 60, 60, 24]
+    parts = []
+    for factor in factors:
+        parts.append(millis % factor)
+        millis = floor(millis / factor)
+    parts.reverse()
+
+    return "{:02d}:{:02d}:{:02d}:{:03d}".format(*parts)
