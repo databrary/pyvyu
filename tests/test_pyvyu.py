@@ -1,4 +1,5 @@
 import pyvyu as pv
+import pandas as pd
 import logging as log
 import os
 import pkg_resources
@@ -36,28 +37,43 @@ def test_spreadsheet_to_df(sample_spreadsheet):
     sheet = pv.load_opf(sample_spreadsheet)
     df = sheet.to_df()
 
-    print(df)
+    pd.set_option("display.max_columns", None)
+    log.info(df)
     assert 156 == len(df)
 
     ms = sheet.to_df("MomSpeech")
-    print(ms)
+    log.info(ms)
     assert 20 == len(ms)
 
 
+@pytest.mark.skip
 def test_df_to_csv(sample_spreadsheet):
     sheet = pv.load_opf(sample_spreadsheet)
     df = sheet.to_df()
     # df.to_csv('./DatavyuSampleSpreadsheet.csv')
 
     df = sheet.to_df("MomSpeech")
-    print(df)
+    log.info(df)
     # df.to_csv('./MomSpeech.csv')
 
 
 @pytest.fixture
 def rsrc_millis():
     """List of test times as milliseconds. Matches rsrc_timestamps."""
-    return [36_000_000, 3_600_000, 600_000, 60_000, 10_000, 1000, 100, 10, 1, 0, 86_399_999, 61_123]
+    return [
+        36_000_000,
+        3_600_000,
+        600_000,
+        60_000,
+        10_000,
+        1000,
+        100,
+        10,
+        1,
+        0,
+        86_399_999,
+        61_123,
+    ]
 
 
 @pytest.fixture
@@ -82,28 +98,6 @@ def rsrc_timestamps():
 def test_to_millis(rsrc_millis, rsrc_timestamps):
     for m, t in zip(rsrc_millis, rsrc_timestamps):
         assert m == pv.to_millis(t)
-
-
-#     ms = pv.to_millis("01:00:00:000")
-#     assert 3600000 == ms
-
-#     ms = pv.to_millis("00:01:00:000")
-#     assert 60000 == ms
-
-#     ms = pv.to_millis("00:00:01:000")
-#     assert 1000 == ms
-
-#     ms = pv.to_millis("00:00:00:001")
-#     assert 1 == ms
-
-#     ms = pv.to_millis("00:00:00:000")
-#     assert 0 == ms
-
-#     ms = pv.to_millis("23:59:59:999")
-#     assert 86399999 == ms
-
-#     ms = pv.to_millis("00:01:01:123")
-#     assert 61123 == ms
 
 
 def test_to_timestamp(rsrc_millis, rsrc_timestamps):

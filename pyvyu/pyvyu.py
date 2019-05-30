@@ -2,8 +2,8 @@ import zipfile
 import re
 import pandas as pd
 import logging as log
+import numbers
 from math import floor
-from functools import total_ordering
 
 
 def load_opf(filename):
@@ -41,15 +41,13 @@ def load_opf(filename):
                 # Check type of line
                 line_type, match = _parse_line(line_stripped)
                 if line_type == "column":
-                    name = match.group("colname")
                     codes = [x.split("|")[0] for x in match.group("codes").split(",")]
-                    log.debug("Stripped line: %s\n", line_stripped)
+                    log.debug(f"Stripped line: {line_stripped}\n")
 
                     # Create new column
                     col = sheet.new_column(match.group("colname"), *codes)
                     log.debug(
-                        f"Created column %s with code(s): %s\n",
-                        col.name,
+                        f"Created column {col.name} with code(s): %s\n",
                         ", ".join(col.codelist),
                     )
 
@@ -58,16 +56,13 @@ def load_opf(filename):
                 elif line_type == "cell":
                     values = match.group("values").split(",")
                     cell = col.new_cell(
-                        *values,
-                        onset=match.group("onset"),
-                        offset=match.group("offset"),
                         ordinal=ordinal_counter,
+                        onset=to_millis(match.group("onset")),
+                        offset=to_millis(match.group("offset")),
+                        *values,
                     )
                     ordinal_counter += 1
-                    log.debug(
-                        "New cell: %s\n",
-                        ", ".join(map(str, cell.get_values(intrinsics=True))),
-                    )
+                    log.debug(f"New cell: {cell}\n")
                 else:
                     log.warning("Can't parse line %d: %s\n", line_num, line_stripped)
     return sheet
@@ -119,11 +114,7 @@ class Spreadsheet:
         all_cells = [cell for col in cols for cell in col.cells]
         unique_times = list(
             dict.fromkeys(
-                [
-                    to_millis(time)
-                    for cell in all_cells
-                    for time in [cell.onset, cell.offset]
-                ]
+                [time for cell in all_cells for time in [cell.onset, cell.offset]]
             )
         )
 
@@ -131,15 +122,15 @@ class Spreadsheet:
         point_times = list(
             dict.fromkeys(
                 [
-                    to_millis(cell.onset)
+                    cell.onset
                     for cell in filter(lambda x: x.onset == x.offset, all_cells)
                 ]
             )
         )
 
         times = sorted(
-            unique_times + point_times
-        )  # this should put a duplicate time for each of the point times
+            set(unique_times + [x + 1 for x in point_times])
+        )  # this should put a time 1 ms after each of the point times
         log.debug(times)
 
         # Iterate over each interval and generate row of values for that interval
@@ -164,6 +155,7 @@ class Spreadsheet:
             columns = self.columns.values()
 
         merge_col = self.merge_columns("temp", *columns)
+        log.debug(merge_col)
 
         variable_list = ["ordinal", "onset", "offset"] + merge_col.codelist
         data = [cell.get_values(intrinsics=True) for cell in merge_col.sorted_cells()]
@@ -234,101 +226,91 @@ class Column:
             else:
                 return cell.values()
 
+    def __repr__(self):
+        return (
+            f"{self.name}("
+            + ",".join(self.codelist)
+            + "):\n["
+            + "\n".join(map(str, self.sorted_cells()))
+            + "]"
+        )
+
 
 class Cell:
     """Representation of a Datavyu annotation."""
 
     def __init__(self, parent=None, ordinal=0, onset=0, offset=0):
-        self.parent = parent
-        self.ordinal = ordinal
-        self.onset = Timestamp.new(onset)
-        self.offset = Timestamp.new(offset)
+        self._parent = parent
+        self._ordinal = ordinal
+        self.onset = to_millis(onset)
+        self.offset = to_millis(offset)
         self.values = {} if parent is None else {k: "" for k in parent.codelist}
 
     def __repr__(self):
-        print(self.parent.name)
-        print(self.ordinal)
-        print(self.onset)
-        print(self.offset)
         return (
             f"{self.parent.name}({self.ordinal},"
-            f"{to_timestamp(self.onset)}-{to_timestamp(self.offset)},"
-        ) + ",".join(self.get_values())
+            + f"{to_timestamp(self.onset)}-{to_timestamp(self.offset)},"
+            + ",".join(map(str, self.get_values()))
+            + ")"
+        )
 
     def change_code(self, code, value):
-        self.values[code] = value
+        if code == "ordinal":
+            self._ordinal = value
+        elif code == "onset":
+            self.onset = to_millis(value)
+        elif code == "offset":
+            self.offset = to_millis(value)
+        elif code in self.values.keys():
+            self.values[code] = value
+        else:
+            raise Exception(f"Cell does not have code: {code}")
 
     def get_code(self, code):
-        return self.values[code]
+        if code == "ordinal":
+            return self._ordinal
+        elif code == "onset":
+            return self.onset
+        elif code == "offset":
+            return self.offset
+        elif code in self.values.keys():
+            return self.values[code]
+        else:
+            raise Exception(f"Cell does not contain code: {code}")
 
     def set_values(self, *values):
         for code, value in zip(self.parent.codelist, values):
             self.change_code(code, value)
 
-    def get_values(self, intrinsics=False):
-        """Values of this cell. Also includes ordinal, onset, and offset if intrinsics=True"""
+    def get_values(self, intrinsics=False, *codes):
+        """
+        Values of this cell.
+        Also includes ordinal, onset, and offset if intrinsics=True
+        """
+
+        if len(codes) == 0:
+            codes = self.parent.codelist
 
         if intrinsics:
-            return self.values.values()
-        else:
-            return [
-                v
-                for (k, v) in self.values.items()
-                if k not in ["ordinal", "onset", "offset"]
-            ]
+            codes = ["ordinal", "onset", "offset"] + codes
+
+        return [self.get_code(c) for c in codes]
 
     def spans(self, time):
         return self.onset <= time <= self.offset
 
     @property
+    def parent(self):
+        return self._parent
+
+    @property
     def ordinal(self):
-        return self.values["ordinal"]
-
-    @ordinal.setter
-    def ordinal(self, value):
-        self.values["ordinal"] = value
-
-    @property
-    def onset(self):
-        return self.values["onset"]
-
-    @onset.setter
-    def onset(self, value):
-        self.values["onset"] = value
-
-    @property
-    def offset(self):
-        return self.values["offset"]
-
-    @offset.setter
-    def offset(self, value):
-        self.values["offset"] = value
-
-
-@total_ordering
-class Timestamp:
-    """Representation of a Datavyu time point."""
-
-    def __init__(self, value):
-        if isinstance(value, String):
-            self.value = to_millis(value)
-        else:
-            self.value = value
-
-    def __repr__(self):
-        return str(value)
-
-    def __str__(self):
-        return to_timestamp(value)
-
-    def __eq__(self, other):
-        return self.value == other.value
-
-    def __lt__(self, other):
-        return self.value < other.value
+        return self._ordinal
 
 
 def to_millis(timestamp):
+    if isinstance(timestamp, numbers.Number):
+        return timestamp
     ms = 0
     factors = [1, 60, 60, 1000]
     parts = timestamp.split(":")
@@ -336,15 +318,19 @@ def to_millis(timestamp):
         ms *= factor
         ms += int(part)
 
+    log.debug(f"{timestamp} converted to: {ms}")
     return ms
 
 
 def to_timestamp(millis):
     factors = [1000, 60, 60, 24]
+    ms = millis
     parts = []
     for factor in factors:
-        parts.append(millis % factor)
-        millis = floor(millis / factor)
+        parts.append(ms % factor)
+        ms = floor(ms / factor)
     parts.reverse()
 
-    return "{:02d}:{:02d}:{:02d}:{:03d}".format(*parts)
+    ts = "{:02d}:{:02d}:{:02d}:{:03d}".format(*parts)
+    log.debug(f"{millis} converted to: {ts}")
+    return ts
