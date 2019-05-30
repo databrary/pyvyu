@@ -94,8 +94,13 @@ class Spreadsheet:
             for col in column_names
         ]
 
-    def merge_columns(self, name, *columns):
-        """Merge cells of the given columns into a new column."""
+    def merge_columns(self, name, *columns, prune=True):
+        """
+        Merge cells of the given columns into a new column.
+
+        If prune is True, removes cells spanning intervals
+        with no values for any codes.
+        """
 
         if len(columns) == 0:
             columns = self.columns.values()
@@ -135,8 +140,12 @@ class Spreadsheet:
 
         # Iterate over each interval and generate row of values for that interval
         ordinal = 1
-        for onset, offset in zip(times, times[1:]):
+        prev_time = times[0]
+        for time in times[1:]:
+            onset = prev_time
+            offset = time
             ncell = ncol.new_cell(ordinal=ordinal, onset=onset, offset=offset)
+            valid_cells = 0  # num cols with data in interval
             for col in cols:
                 cell = col.cell_at(onset)
                 if cell is not None:
@@ -145,7 +154,15 @@ class Spreadsheet:
                         continue
                     for code in ["ordinal"] + col.codelist:
                         ncell.change_code(f"{col.name}_{code}", cell.get_code(code))
+                    valid_cells += 1
             ordinal += 1
+            prev_time = offset + 1
+
+            # Remove this cell if empty and we are pruning
+            if prune and ncell.isempty():
+                ncol.cells.remove(ncell)
+                ordinal -= 1
+
         return ncol
 
     def to_df(self, *columns):
@@ -298,6 +315,10 @@ class Cell:
 
     def spans(self, time):
         return self.onset <= time <= self.offset
+
+    def isempty(self):
+        """ Return true if all code values are "" or null"""
+        return all(v == "" or v is None for v in self.values.values())
 
     @property
     def parent(self):
