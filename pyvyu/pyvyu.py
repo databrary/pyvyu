@@ -5,26 +5,27 @@ import logging as log
 import numbers
 from math import floor
 
+_line_formats = {
+    "column": re.compile(r"(?P<colname>\w+)\s\(.*\)\-(?P<codes>.*)"),
+    "cell": re.compile(
+        r"(?P<onset>\d{2}\:\d{2}\:\d{2}\:\d{3}),"
+        r"(?P<offset>\d{2}\:\d{2}\:\d{2}\:\d{3}),"
+        r"\((?P<values>.*)\)"
+    ),
+}
+
+
+def _parse_line(line):
+    for key, rx in _line_formats.items():
+        match = rx.search(line)
+        if match:
+            return key, match
+
+    return None, None
+
 
 def load_opf(filename):
     """Extract data from a .opf file and return a Spreadsheet"""
-
-    line_formats = {
-        "column": re.compile(r"(?P<colname>\w+)\s\(.*\)\-(?P<codes>.*)"),
-        "cell": re.compile(
-            r"(?P<onset>\d{2}\:\d{2}\:\d{2}\:\d{3}),"
-            r"(?P<offset>\d{2}\:\d{2}\:\d{2}\:\d{3}),"
-            r"\((?P<values>.*)\)"
-        ),
-    }
-
-    def _parse_line(line):
-        for key, rx in line_formats.items():
-            match = rx.search(line)
-            if match:
-                return key, match
-
-        return None, None
 
     with zipfile.ZipFile(filename, "r") as zf:
         assert "db" in zf.namelist()
