@@ -4,6 +4,8 @@ import pandas as pd
 import logging as log
 import numbers
 from math import floor
+import tempfile
+import os
 
 _line_formats = {
     "column": re.compile(r"(?P<colname>\w+)\s\(.*\)\-(?P<codes>.*)"),
@@ -67,6 +69,30 @@ def load_opf(filename):
                 else:
                     log.warning("Can't parse line %d: %s\n", line_num, line_stripped)
     return sheet
+
+
+def save_opf(sheet, filename, *columns):
+    """
+    Save sheet to file. For existing zip files, need to recreate the whole thing.
+    See: https://stackoverflow.com/questions/25738523
+    """
+
+    tmpfd, tmpname = tempfile.mkstemp(dir=os.path.dirname(filename))
+    os.close(tmpfd)
+
+    # make copy
+    with zipfile.ZipFile(filename, "r") as zfin:
+        with zipfile.ZipFile(tmpname, "w") as zfout:
+            zfout.comment = zfin.comment
+            for item in zfin.infolist():
+                if item.filename != "db":
+                    zfout.writestr(item, zfin.read(item.filename))
+
+    os.remove(filename)
+    os.rename(tmpname, filename)
+
+    with zipfile.ZipFile(filename, mode="a") as zf:
+        zf.writestr("db", "#4\n" + sheet._to_opfdb(columns=columns))
 
 
 class Spreadsheet:
@@ -199,6 +225,10 @@ class Spreadsheet:
 
         return [col.cell_at(time) for col in cols]
 
+    def _to_opfdb(self, columns=columns.keys()):
+        """Converts to .opf compatible string."""
+        return "\n".join([self.columns[col]._to_opfdb() for col in columns])
+
 
 class Column:
     """Representation of a Datavyu coding pass."""
@@ -252,6 +282,16 @@ class Column:
             + "\n".join(map(str, self.sorted_cells()))
             + "]"
         )
+
+    def _to_opfdb(self):
+        """Converts to .opf compatible string."""
+
+        header = f"{self.name} (MATRIX,false,)-" + ",".join(
+            [str(c) + "|NOMINAL" for c in self.codelist]
+        )
+        lst = [c._to_opfdb() for c in self.cells]
+        lst.insert(0, header)
+        return "\n".join(lst)
 
 
 class Cell:
@@ -328,6 +368,14 @@ class Cell:
     @property
     def ordinal(self):
         return self._ordinal
+
+    def _to_opfdb(self):
+        return (
+            f"{to_timestamp(self.onset)},{to_timestamp(self.offset)},"
+            + "("
+            + ",".join([v for v in self.get_values()])
+            + ")"
+        )
 
 
 def to_millis(timestamp):
