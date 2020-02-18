@@ -6,6 +6,7 @@ import numbers
 from math import floor
 import tempfile
 import os
+import json
 
 _line_formats = {
     "column": re.compile(r"(?P<colname>\w+)\s\(.*\)\-(?P<codes>.*)"),
@@ -24,6 +25,40 @@ def _parse_line(line):
             return key, match
 
     return None, None
+
+
+def load_json(filename):
+    with open(filename, 'r') as jf:
+        sheet = Spreadsheet()
+        col = None
+        ordinal_counter = 1
+
+        json_sheet = json.load(jf)
+        for column in json_sheet["passes"]:
+            codes = column["arguments"]
+            cells = column["cells"]
+            name = column["name"]
+            coltype = column["type"]
+
+            col = sheet.new_column(name, *codes)
+            log.debug(
+                f"Created column {col.name} with code(s): %s\n",
+                ", ".join(col.codelist),
+            )
+
+            for cell in cells:
+                ordinal = cell["id"]
+                onset = cell["onset"]
+                offset = cell["offset"]
+                values = cell["values"]
+                cell = col.new_cell(
+                        ordinal = ordinal,
+                        onset = to_millis(onset),
+                        offset = to_millis(offset),
+                        *values,
+                )
+                log.debug(f"New cell: {cell}\n")
+        return sheet
 
 
 def load_opf(filename):
@@ -69,6 +104,11 @@ def load_opf(filename):
                 else:
                     log.warning("Can't parse line %d: %s\n", line_num, line_stripped)
     return sheet
+
+
+def save_json(sheet, filename, *columns):
+    with open(filename, 'w') as outfile:
+        json.dump(sheet._to_json(), outfile, indent=4)
 
 
 def save_opf(sheet, filename, *columns):
@@ -229,6 +269,9 @@ class Spreadsheet:
         """Converts to .opf compatible string."""
         return "\n".join([self.columns[col]._to_opfdb() for col in columns])
 
+    def _to_json(self, columns=columns.keys()):
+        return {"passes" : [self.columns[col]._to_json() for col in columns]}
+
 
 class Column:
     """Representation of a Datavyu coding pass."""
@@ -292,6 +335,12 @@ class Column:
         lst = [c._to_opfdb() for c in self.cells]
         lst.insert(0, header)
         return "\n".join(lst)
+
+    def _to_json(self):
+        return {"name": self.name,
+                "type": "MATRIX",
+                "arguments": {c : "NOMINAL" for c in self.codelist},
+                "cells": [c._to_json() for c in self.cells]}
 
 
 class Cell:
@@ -376,6 +425,13 @@ class Cell:
             + ",".join([v for v in self.get_values()])
             + ")"
         )
+
+    def _to_json(self):
+        return {"id": self.ordinal,
+                "onset": to_timestamp(self.onset),
+                "offset": to_timestamp(self.offset),
+                "values": [v for v in self.get_values()]
+            }
 
 
 def to_millis(timestamp):

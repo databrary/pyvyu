@@ -13,7 +13,7 @@ def get_resource(file):
     if pkg_resources.resource_exists(__name__, path):
         return pkg_resources.resource_stream(__name__, path)
     else:
-        raise (Exception(f"Can't find resource: {file}"))
+        print(f"Can't find resource: {file}")
 
 
 @pytest.fixture
@@ -44,6 +44,18 @@ def test_spreadsheet_to_df(sample_spreadsheet):
     ms = sheet.to_df("MomSpeech")
     log.info(ms)
     assert 20 == len(ms)
+
+def test_json(sample_spreadsheet):
+    sheet = pv.load_opf(sample_spreadsheet)
+    pv.save_json(sheet, "test.json")
+    json_sheet = pv.load_json("test.json")
+    momspeech = json_sheet.get_column("MomSpeech")
+    assert len(momspeech.sorted_cells()) == 20
+    o_momspeech = sheet.get_column("MomSpeech")
+    for oc, c in zip(o_momspeech.cells, momspeech.cells):
+        assert all([x == y for x, y in zip(oc.get_values(), c.get_values())])
+    # Cleanup
+    os.remove("test.json")
 
 
 @pytest.mark.skip
