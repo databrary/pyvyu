@@ -28,7 +28,7 @@ def _parse_line(line):
 
 
 def load_json(filename):
-    with open(filename, 'r') as jf:
+    with open(filename, "r") as jf:
         sheet = Spreadsheet()
         col = None
         ordinal_counter = 1
@@ -52,10 +52,10 @@ def load_json(filename):
                 offset = cell["offset"]
                 values = cell["values"]
                 cell = col.new_cell(
-                        ordinal = ordinal,
-                        onset = to_millis(onset),
-                        offset = to_millis(offset),
-                        *values,
+                    ordinal=ordinal,
+                    onset=to_millis(onset),
+                    offset=to_millis(offset),
+                    *values,
                 )
                 log.debug(f"New cell: {cell}\n")
         return sheet
@@ -107,7 +107,7 @@ def load_opf(filename):
 
 
 def save_json(sheet, filename, *columns):
-    with open(filename, 'w') as outfile:
+    with open(filename, "w") as outfile:
         json.dump(sheet._to_json(), outfile, indent=4)
 
 
@@ -121,18 +121,29 @@ def save_opf(sheet, filename, *columns):
     os.close(tmpfd)
 
     # make copy
-    with zipfile.ZipFile(filename, "r") as zfin:
-        with zipfile.ZipFile(tmpname, "w") as zfout:
-            zfout.comment = zfin.comment
-            for item in zfin.infolist():
-                if item.filename != "db":
-                    zfout.writestr(item, zfin.read(item.filename))
+    if os.path.exists(filename):  # check to see if we're creating opf denovo
+        with zipfile.ZipFile(filename, "r") as zfin:
+            with zipfile.ZipFile(tmpname, "w") as zfout:
+                zfout.comment = zfin.comment
+                for item in zfin.infolist():
+                    if item.filename != "db":
+                        zfout.writestr(item, zfin.read(item.filename))
 
-    os.remove(filename)
-    os.rename(tmpname, filename)
+        os.remove(filename)
+        os.rename(tmpname, filename)
 
-    with zipfile.ZipFile(filename, mode="a") as zf:
-        zf.writestr("db", "#4\n" + sheet._to_opfdb(columns=columns))
+        with zipfile.ZipFile(filename, mode="a") as zf:
+            zf.writestr("db", "#4\n" + sheet._to_opfdb(columns=columns))
+    else:
+        with zipfile.ZipFile(filename, mode="w") as zf:
+            zf.writestr("db", "#4\n" + sheet._to_opfdb(columns=columns))
+            zf.writestr("project", 
+                    """!project
+dbFile: {}
+name: {}
+version: 5
+viewerSettings: []
+""".format(filename, filename.remove(".opf")))
 
 
 class Spreadsheet:
@@ -270,7 +281,7 @@ class Spreadsheet:
         return "\n".join([self.columns[col]._to_opfdb() for col in columns])
 
     def _to_json(self, columns=columns.keys()):
-        return {"passes" : [self.columns[col]._to_json() for col in columns]}
+        return {"passes": [self.columns[col]._to_json() for col in columns]}
 
 
 class Column:
@@ -329,7 +340,7 @@ class Column:
     def _to_opfdb(self):
         """Converts to .opf compatible string."""
 
-        header = f"{self.name} (MATRIX,false,)-" + ",".join(
+        header = f"{self.name} (MATRIX,true,)-" + ",".join(
             [str(c) + "|NOMINAL" for c in self.codelist]
         )
         lst = [c._to_opfdb() for c in self.cells]
@@ -337,10 +348,12 @@ class Column:
         return "\n".join(lst)
 
     def _to_json(self):
-        return {"name": self.name,
-                "type": "MATRIX",
-                "arguments": {c : "NOMINAL" for c in self.codelist},
-                "cells": [c._to_json() for c in self.cells]}
+        return {
+            "name": self.name,
+            "type": "MATRIX",
+            "arguments": {c: "NOMINAL" for c in self.codelist},
+            "cells": [c._to_json() for c in self.cells],
+        }
 
 
 class Cell:
@@ -427,11 +440,12 @@ class Cell:
         )
 
     def _to_json(self):
-        return {"id": self.ordinal,
-                "onset": to_timestamp(self.onset),
-                "offset": to_timestamp(self.offset),
-                "values": [v for v in self.get_values()]
-            }
+        return {
+            "id": self.ordinal,
+            "onset": to_timestamp(self.onset),
+            "offset": to_timestamp(self.offset),
+            "values": [v for v in self.get_values()],
+        }
 
 
 def to_millis(timestamp):
