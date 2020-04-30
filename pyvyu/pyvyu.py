@@ -143,7 +143,7 @@ dbFile: {}
 name: {}
 version: 5
 viewerSettings: []
-""".format(filename, filename.remove(".opf")))
+""".format(filename, filename.replace(".opf", "")))
 
 
 class Spreadsheet:
