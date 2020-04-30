@@ -111,7 +111,7 @@ def save_json(sheet, filename, *columns):
         json.dump(sheet._to_json(), outfile, indent=4)
 
 
-def save_opf(sheet, filename, *columns):
+def save_opf(sheet, filename, overwrite_project=False, *columns):
     """
     Save sheet to file. For existing zip files, need to recreate the whole thing.
     See: https://stackoverflow.com/questions/25738523
@@ -121,7 +121,7 @@ def save_opf(sheet, filename, *columns):
     os.close(tmpfd)
 
     # make copy
-    if os.path.exists(filename):  # check to see if we're creating opf denovo
+    if os.path.exists(filename) and not overwrite_project:  # check to see if we're creating opf denovo
         with zipfile.ZipFile(filename, "r") as zfin:
             with zipfile.ZipFile(tmpname, "w") as zfout:
                 zfout.comment = zfin.comment
