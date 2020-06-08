@@ -32,6 +32,15 @@ def test_load_sample(sample_spreadsheet):
     momspeech = sheet.get_column("MomSpeech")
     assert len(momspeech.sorted_cells()) == 20
 
+@pytest.mark.skip
+def test_trim_sheet(sample_spreadsheet):
+    sheet = pv.load_opf(sample_spreadsheet)
+    assert len(sheet.get_column_list()) == 6
+    onset = pv.to_millis('00:00:09:075')
+    offset = pv.to_millis('00:00:11:855')
+    sheet_trimmed = pv.trim_sheet(onset, offset, sheet)
+    pv.save_opf(sheet_trimmed, 'Trimmed.opf')
+
 
 def test_spreadsheet_to_df(sample_spreadsheet):
     sheet = pv.load_opf(sample_spreadsheet)
@@ -44,6 +53,7 @@ def test_spreadsheet_to_df(sample_spreadsheet):
     ms = sheet.to_df("MomSpeech")
     log.info(ms)
     assert 20 == len(ms)
+
 
 def test_json(sample_spreadsheet):
     sheet = pv.load_opf(sample_spreadsheet)
