@@ -105,3 +105,6 @@ venv.bak/
 
 # IDEA projects
 .idea/
+
+# VS Code projects
+.vscode/
