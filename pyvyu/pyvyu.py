@@ -113,7 +113,7 @@ def trim_sheet(onset, offset, sheet: Spreadsheet, *columns):
         sheet.columns = {colname: col for (colname, col) in sheet.columns.items() if colname in columns}
 
     for col in sheet.columns.values():
-        col.cells = [cell.trim(onset, offset) for cell in col.cells if cell.in_range(onset, offset)]
+        col.cells = [cell.trim(onset, offset).shift(onset) for cell in col.cells if cell.in_range(onset, offset)]
 
     sheet.columns = {colname: col for (colname, col) in sheet.columns.items() if len(col.cells) > 0}
 
