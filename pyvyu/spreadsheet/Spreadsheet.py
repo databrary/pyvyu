@@ -29,10 +29,10 @@ class Spreadsheet:
         ]
 
     def filter_columns(self, *columns_name):
-        if len(columns_name) != 0:
+        if len(columns_name) == 0:
             raise AttributeError('Columns list cannot be empty')
 
-        self.columns = {colname: col for (colname, col) in columns_name.items() if colname in columns_name}
+        self.columns = {colname: col for (colname, col) in self.columns.items() if colname in columns_name}
         return self
 
     def remove_empty_columns(self):
@@ -159,9 +159,13 @@ class Spreadsheet:
 
     def __eq__(self, other):
         if isinstance(self, other.__class__):
-            for colname, col in self.columns.items():
-                if other.columns[colname] is None or other.columns[colname] != col:
-                    return False
+            if len(self.columns) != len(other.columns):
+                return False
 
-        return True
+            for colname, col in self.columns.items():
+                if other.columns[colname] != col:
+                    return False
+            return True
+
+        return False
 

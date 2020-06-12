@@ -45,14 +45,18 @@ def test_load_sample(sample_spreadsheet):
     assert len(momspeech.sorted_cells()) == 20
 
 
+def test_trim_sheet_fail(sample_spreadsheet, trimmed_sample_spreadsheet, onset, offset):
+    columns = ["MomSpeech", "MomObject"]
+    sheet = pv.load_opf(sample_spreadsheet)
+    sheet = pv.trim_sheet(onset, offset, sheet, True, False, *columns)
+    sheet_trimmed = pv.load_opf(trimmed_sample_spreadsheet)
+    assert sheet != sheet_trimmed
+
 def test_trim_sheet(sample_spreadsheet, trimmed_sample_spreadsheet, onset, offset):
     sheet = pv.load_opf(sample_spreadsheet)
-    sheet = pv.trim_sheet(onset, offset, sheet)
-    # pv.save_opf(sheet, 'DatavyuSampleSpreadsheetTrimmed.opf')
+    sheet = pv.trim_sheet(onset, offset, sheet, True, False)
     sheet_trimmed = pv.load_opf(trimmed_sample_spreadsheet)
-
     assert sheet == sheet_trimmed
-
 
 def test_spreadsheet_to_df(sample_spreadsheet):
     sheet = pv.load_opf(sample_spreadsheet)

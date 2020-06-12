@@ -105,12 +105,12 @@ def load_opf(filename):
                     log.warning("Can't parse line %d: %s\n", line_num, line_stripped)
     return sheet
 
-def trim_sheet(onset, offset, sheet: Spreadsheet, shift = True, remove_empty = False ,*columns):
+def trim_sheet(onset, offset, sheet, shift, remove_empty, *columns):
     if onset > offset:
         raise AttributeError('the Onset cannot be greater than the Offset')
 
     if len(columns) != 0:
-        sheet = sheet.filter_columns(columns)
+        sheet = sheet.filter_columns(*columns)
 
     sheet = sheet.trim(onset, offset, shift)
 

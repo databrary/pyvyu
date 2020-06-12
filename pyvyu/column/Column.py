@@ -87,10 +87,14 @@ class Column:
 
     def __eq__(self, other):
         if isinstance(self, other.__class__):
+            if len(self.cells) != len(other.cells):
+                return False
+
             for index, cell in enumerate(self.cells):
                 if cell != other.cells[index]:
                     return False
+            return True
 
-        return True
+        return False
 
 
