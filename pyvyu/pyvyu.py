@@ -105,17 +105,17 @@ def load_opf(filename):
                     log.warning("Can't parse line %d: %s\n", line_num, line_stripped)
     return sheet
 
-def trim_sheet(onset, offset, sheet: Spreadsheet, *columns):
+def trim_sheet(onset, offset, sheet: Spreadsheet, shift = True, remove_empty = False ,*columns):
     if onset > offset:
         raise AttributeError('the Onset cannot be greater than the Offset')
 
     if len(columns) != 0:
-        sheet.columns = {colname: col for (colname, col) in sheet.columns.items() if colname in columns}
+        sheet = sheet.filter_columns(columns)
 
-    for col in sheet.columns.values():
-        col.cells = [cell.trim(onset, offset).shift(onset) for cell in col.cells if cell.in_range(onset, offset)]
+    sheet = sheet.trim(onset, offset, shift)
 
-    sheet.columns = {colname: col for (colname, col) in sheet.columns.items() if len(col.cells) > 0}
+    if remove_empty:
+        sheet = sheet.remove_empty_columns()
 
     return sheet
 
@@ -160,11 +160,13 @@ def save_opf(sheet, filename, overwrite_project=False, *columns):
     if len(columns) == 0:
         columns = sheet.columns.keys()
 
-    tmpfd, tmpname = tempfile.mkstemp(dir=os.path.dirname(filename))
-    os.close(tmpfd)
-
     # make copy
     if os.path.exists(filename) and not overwrite_project:  # check to see if we're creating opf denovo
+        tmpfd, tmpname = tempfile.mkstemp(dir=os.path.dirname(filename))
+        os.close(tmpfd)
+
+        print("tmpfd {} and tmpname {} and filename {}".format(tmpfd, tmpname, filename))
+
         with zipfile.ZipFile(filename, "r") as zfin:
             with zipfile.ZipFile(tmpname, "w") as zfout:
                 zfout.comment = zfin.comment
@@ -179,6 +181,7 @@ def save_opf(sheet, filename, overwrite_project=False, *columns):
             zf.writestr("db", "#4\n" + sheet._to_opfdb(columns=columns))
     else:
         with zipfile.ZipFile(filename, mode="w") as zf:
+            print(zf.infolist())
             zf.writestr("db", "#4\n" + sheet._to_opfdb(columns=columns))
             zf.writestr("project", 
                     """!project
@@ -187,4 +190,5 @@ name: {}
 version: 5
 viewerSettings: []
 """.format(filename, filename.replace(".opf", "")))
+
 

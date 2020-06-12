@@ -20,6 +20,18 @@ def get_resource(file):
 def sample_spreadsheet():
     return get_resource("DatavyuSampleSpreadsheet.opf")
 
+@pytest.fixture
+def trimmed_sample_spreadsheet():
+    return get_resource("DatavyuSampleSpreadsheetTrimmed.opf")
+
+@pytest.fixture
+def offset():
+    return pv.to_millis('00:00:38:789')
+
+@pytest.fixture
+def onset():
+    return pv.to_millis('00:00:36:861')
+
 
 def test_init():
     assert "load_opf" in dir(pv)
@@ -32,14 +44,14 @@ def test_load_sample(sample_spreadsheet):
     momspeech = sheet.get_column("MomSpeech")
     assert len(momspeech.sorted_cells()) == 20
 
-@pytest.mark.skip
-def test_trim_sheet(sample_spreadsheet):
+
+def test_trim_sheet(sample_spreadsheet, trimmed_sample_spreadsheet, onset, offset):
     sheet = pv.load_opf(sample_spreadsheet)
-    assert len(sheet.get_column_list()) == 6
-    onset = pv.to_millis('00:00:09:075')
-    offset = pv.to_millis('00:00:11:855')
-    sheet_trimmed = pv.trim_sheet(onset, offset, sheet)
-    pv.save_opf(sheet_trimmed, 'Trimmed.opf')
+    sheet = pv.trim_sheet(onset, offset, sheet)
+    # pv.save_opf(sheet, 'DatavyuSampleSpreadsheetTrimmed.opf')
+    sheet_trimmed = pv.load_opf(trimmed_sample_spreadsheet)
+
+    assert sheet == sheet_trimmed
 
 
 def test_spreadsheet_to_df(sample_spreadsheet):

@@ -38,6 +38,16 @@ class Column:
         cell = next((cell for cell in self.cells if cell.in_range(onset, offset)), None)
         return cell
 
+    def trim(self, onset, offset, shift=True):
+        if shift:
+            self.cells = [cell.trim(onset, offset).shift(onset) for cell in self.cells if
+                             cell.in_range(onset, offset)]
+        else:
+            self.cells = [cell.trim(onset, offset) for cell in self.cells if
+                             cell.in_range(onset, offset)]
+
+        return self
+
     def values_at(self, time, intrinsics=False):
         cell = self.cell_at(time)
         if cell is None:
@@ -74,4 +84,13 @@ class Column:
             "arguments": {c: "NOMINAL" for c in self.codelist},
             "cells": [c._to_json() for c in self.cells],
         }
+
+    def __eq__(self, other):
+        if isinstance(self, other.__class__):
+            for index, cell in enumerate(self.cells):
+                if cell != other.cells[index]:
+                    return False
+
+        return True
+
 

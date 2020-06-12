@@ -1,5 +1,6 @@
 from .. import pyvyu as pv
 
+
 class Cell:
     """Representation of a Datavyu annotation."""
 
@@ -12,10 +13,10 @@ class Cell:
 
     def __repr__(self):
         return (
-            f"{self.parent.name}({self.ordinal},"
-            + f"{pv.to_timestamp(self.onset)}-{pv.to_timestamp(self.offset)},"
-            + ",".join(map(str, self.get_values()))
-            + ")"
+                f"{self.parent.name}({self.ordinal},"
+                + f"{pv.to_timestamp(self.onset)}-{pv.to_timestamp(self.offset)},"
+                + ",".join(map(str, self.get_values()))
+                + ")"
         )
 
     def change_code(self, code, value):
@@ -72,6 +73,7 @@ class Cell:
     def trim(self, onset, offset):
         self.onset = max(onset, self.onset)
         self.offset = min(offset, self.offset)
+
         return self
 
     def shift(self, offset):
@@ -93,10 +95,10 @@ class Cell:
 
     def _to_opfdb(self):
         return (
-            f"{pv.to_timestamp(self.onset)},{pv.to_timestamp(self.offset)},"
-            + "("
-            + ",".join([v for v in self.get_values()])
-            + ")"
+                f"{pv.to_timestamp(self.onset)},{pv.to_timestamp(self.offset)},"
+                + "("
+                + ",".join([v for v in self.get_values()])
+                + ")"
         )
 
     def _to_json(self):
@@ -106,3 +108,9 @@ class Cell:
             "offset": pv.to_timestamp(self.offset),
             "values": [v for v in self.get_values()],
         }
+
+    def __eq__(self, other):
+        if isinstance(self, other.__class__):
+            return self.onset == other.onset and self.offset == other.offset and self.values == other.values
+
+        return False
